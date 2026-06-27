@@ -46,7 +46,7 @@ client = st.session_state.clients_data[selected_client]
 if st.session_state.current_tab == "Сьогодні":
     st.header(f"📝 {selected_client}: Тренування сьогодні")
     
-    # --- ВИБІР ВПРАВ ЗІ СПИСКУ ---
+    # Вибір вправ зі списку
     with st.expander("➕ Додати вправи зі списку на сьогодні"):
         raw_exercises = [line.strip() for line in client["exercise_list"].split("\n") if line.strip()]
         st.write("Познач вправи:")
@@ -68,17 +68,16 @@ if st.session_state.current_tab == "Сьогодні":
             
     st.markdown("---")
 
-    # Твоє улюблене суцільне поле, де ти пишеш як у Samsung Notes
-    client["today_workout"] = st.text_area("Твій щоденник тренування:", value=client["today_workout"], height=400)
+    # ОДНЕ ВЕЛИКЕ ПОЛЕ БЛОКНОТА (ЯК БУЛО)
+    client["today_workout"] = st.text_area("Твій щоденник тренування (внось зміни руками):", value=client["today_workout"], height=450)
     
-    # --- ШВИДКИЙ ПЕРЕХІД ДО ІСТОРІЇ (БЕЗ HTML, ЧИСТІ КНОПКИ КЛІЄНТА) ---
+    # Швидкий пошук історії під блокнотом
     current_exercises = re.findall(r'^\d+\.\s*(.+)', client["today_workout"], flags=re.MULTILINE)
     if current_exercises:
         st.markdown("---")
-        st.write("🔍 **Подивитися минулу історію вправи:**")
-        # Робимо випадаючий список суто з тих вправ, які ти СЬОГОДНІ вписала в текст
-        chosen_ex = st.selectbox("Обери вправу, щоб глянути її минулі ваги:", [e.strip() for e in current_exercises], key="quick_search")
-        if st.button(f"📖 Відкрити щоденник: {chosen_ex}"):
+        st.write("🔍 **Перевірити минулі ваги цієї вправи:**")
+        chosen_ex = st.selectbox("Обери вправу для аналізу:", [e.strip() for e in current_exercises], key="quick_search")
+        if st.button(f"📖 Відкрити історію: {chosen_ex}"):
             st.session_state.selected_exercise = chosen_ex
             st.session_state.current_tab = "Історія вправи"
             st.rerun()
@@ -133,18 +132,30 @@ elif st.session_state.current_tab == "Історія тренувань":
     st.header(f"📅 Загальна історія: {selected_client}")
     client["workout_history"] = st.text_area("Перегляд історії:", value=client["workout_history"], height=500)
 
-# ВКЛАДКА: ІСТОРІЯ ВПРАВИ
+# ВКЛАДКА: ІСТОРІЯ ВПРАВИ (ЗІ ЗМІНЕНИМ КОЛЬОРОМ ФОНУ)
 elif st.session_state.current_tab == "Історія вправи":
-    st.header(f"🏋️‍♀️ Щоденник вправи: {selected_client}")
+    st.header(f"📜 АРХІВ: Історія конкретної вправи ({selected_client})")
     
     all_ex = list(client["exercise_history"].keys())
     if not st.session_state.selected_exercise or st.session_state.selected_exercise not in all_ex:
         if all_ex: st.session_state.selected_exercise = all_ex[0]
         
     if all_ex:
-        st.session_state.selected_exercise = st.selectbox("Обери вправу:", all_ex, index=all_ex.index(st.session_state.selected_exercise) if st.session_state.selected_exercise in all_ex else 0)
-        current_history = client["exercise_history"][st.session_state.selected_exercise]
-        new_history = st.text_area(f"Історія по {st.session_state.selected_exercise}", value=current_history, height=450)
-        client["exercise_history"][st.session_state.selected_exercise] = new_history
+        st.session_state.selected_exercise = st.selectbox("Обери вправу з архіву:", all_ex, index=all_ex.index(st.session_state.selected_exercise) if st.session_state.selected_exercise in all_ex else 0)
+        
+        # Виділяємо блок історії кольоровою карткою-нотаткою
+        with st.container():
+            st.info(f"⏳ Нижче виведено минулі тренування для вправи: **{st.session_state.selected_exercise}**")
+            
+            current_history = client["exercise_history"][st.session_state.selected_exercise]
+            
+            # Текстове поле історії отримує помітку "АРХІВНА"
+            new_history = st.text_area(
+                "📜 Минулі записи (Редагувати архів):", 
+                value=current_history, 
+                height=450,
+                help="Це архівна вкладка. Зміни тут впливають лише на історію вправи."
+            )
+            client["exercise_history"][st.session_state.selected_exercise] = new_history
     else:
         st.info("В історії цієї клієнтки ще немає записів вправ.")

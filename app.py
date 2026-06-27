@@ -3,30 +3,24 @@ import re
 
 st.set_page_config(page_title="Блокнот Тренера", page_icon="🏋️‍♀️", layout="centered")
 
-# --- 1. СТВОРЕННЯ БАЗИ ДАНИХ ---
+# --- 1. СТВОРЕННЯ БАЗИ ДАНИХ ДЛЯ БАГАТЬОХ КЛІЄНТОК ---
 if 'clients_data' not in st.session_state:
     st.session_state.clients_data = {
         "Юля": {
             "exercise_list": "Жим штанги\nЖим гантель\nБіцепс гантелями\nБіцепс палкою\nТріцепс палкою\nПрес\n\nЖим ногами\nРозгинання ніг\nМісток",
             "workout_history": "Вівторок 27.06.26 (біцепс, тріцепс + плечі)\n1. Біцепс палкою\n2. Тріцепс палкою\n3. Біцепс молотки\n4. Тріцепс віджимання\n5. Плечі махи\n6. Прес",
             "exercise_history": {
-                "Біцепс палкою": "Вівторок 27.06.26\n1п: 15кг 15р 3з\n2п: 20кг 12р 2з\nДля заміток: все супер",
-                "Тріцепс палкою": "Вівторок 27.06.26\n1п: 12кг 15р 2з"
+                "Біцепс палкою": "Вівторок 27.06.26\n1п: 15кг 15р 3з\n2п: 20кг 12р 2з\nДля заміток: все супер"
             },
-            "today_workout_exercises": ["Біцепс палкою", "Тріцепс палкою"],
-            "today_workout_sets": {
-                "Біцепс палкою": "1п: 15кг 15р 3з\n2п: 20кг 12р 2з\n3п: 20кг 12р 1з\n4п: 20кг 12р 1з\nДля заміток: 4 підхід останні 2 без техніки",
-                "Тріцепс палкою": "1п: 15кг 15р 3з\nДля заміток:"
-            },
-            "today_comment": "спина, руки"
+            "today_workout": "Сьогодні 29.06.26 (спина, руки)\n\n1. Біцепс палкою\n1п: 15кг 15р 3з\n\n2. Тріцепс палкою\n1п: 15кг 15р 3з"
         },
         "Олена": {
             "exercise_list": "Присідання\nВипади\nТяга верхнього блоку\nPlank",
             "workout_history": "П'ятниця 26.06.26 (Ноги)\n1. Присідання\n2. Випади",
-            "exercise_history": {"Присідання": "П'ятниця 26.06.26\n1п: 30кг 12р 2з"},
-            "today_workout_exercises": ["Тяга верхнього блоку"],
-            "today_workout_sets": {"Тяга верхнього блоку": "1п: 25кг 12р 3з"},
-            "today_comment": "Всього тіла"
+            "exercise_history": {
+                "Присідання": "П'ятниця 26.06.26\n1п: 30кг 12р 2з"
+            },
+            "today_workout": "Сьогодні 29.06.26 (Всього тіла)\n\n1. Тяга верхнього блоку\n1п: 25кг 12р 3з"
         }
     }
 
@@ -35,8 +29,9 @@ if 'selected_exercise' not in st.session_state:
 if 'current_tab' not in st.session_state:
     st.session_state.current_tab = "Сьогодні"
 
-# --- 2. КЕРУВАННЯ У БОКОВОМУ МЕНЮ ---
+# --- 2. ВИБІР КЛІЄНТКИ ТА ВКЛАДКИ У БОКОВОМУ МЕНЮ ---
 st.sidebar.title("🗂️ Керування")
+
 client_names = list(st.session_state.clients_data.keys())
 selected_client = st.sidebar.selectbox("🙋‍♀️ Обери клієнтку:", client_names)
 
@@ -45,82 +40,88 @@ st.session_state.current_tab = st.sidebar.radio("Перейти до:", tabs, in
 
 client = st.session_state.clients_data[selected_client]
 
-# --- 3. ЛОГІКА ВКЛАДОК ---
+# --- 3. ЛОГІКА РОБОТИ ВКЛАДОК ---
 
+# ВКЛАДКА: СЬОГОДНІ
 if st.session_state.current_tab == "Сьогодні":
     st.header(f"📝 {selected_client}: Тренування сьогодні")
     
-    # Коментар до дня
-    client["today_comment"] = st.text_input("Фокус дня (наприклад: спина, руки):", value=client["today_comment"])
-    
-    st.markdown("---")
-    
-    # Конструктор вправ на сьогодні
-    with st.expander("➕ Додати/видалити вправи зі списку"):
+    # --- ВИБІР ВПРАВ ЗІ СПИСКУ ---
+    with st.expander("➕ Додати вправи зі списку на сьогодні"):
         raw_exercises = [line.strip() for line in client["exercise_list"].split("\n") if line.strip()]
-        new_selection = []
+        st.write("Познач вправи:")
+        selected_to_add = []
         for ex in raw_exercises:
-            is_checked = ex in client["today_workout_exercises"]
-            if st.checkbox(ex, value=is_checked, key=f"manage_{ex}"):
-                new_selection.append(ex)
+            if st.checkbox(ex, key=f"check_{ex}"):
+                selected_to_add.append(ex)
         
-        # Можливість вписати абсолютно нову вправу руками
-        new_custom_ex = st.text_input("✨ Вписати нову вправу руками (якщо немає в списку):")
-        if st.button("Додати цю нову вправу"):
-            if new_custom_ex.strip() and new_custom_ex.strip() not in client["today_workout_exercises"]:
-                new_selection.append(new_custom_ex.strip())
-                client["exercise_list"] = new_custom_ex.strip() + "\n" + client["exercise_list"]
-                
-        client["today_workout_exercises"] = new_selection
-        
-    st.markdown("---")
-    
-    # ВИВЕДЕННЯ СПИСКУ ВПРАВ ТА ПОЛІВ ВВОДУ
-    st.write("📋 **План на сьогодні (Клікни на назву вправи для перегляду її історії):**")
-    
-    for i, ex in enumerate(client["today_workout_exercises"], 1):
-        # Назва вправи оформлена як кнопка-лінк. Клік по ній переводить в історію
-        if st.button(f"🔗 {i}. {ex.upper()}", key=f"link_{ex}_{i}", use_container_width=True):
-            st.session_state.selected_exercise = ex
-            st.session_state.current_tab = "Історія вправи"
+        if st.button("Вставити вибрані вправи в блокнот"):
+            existing_matches = re.findall(r'^\d+\.\s*', client["today_workout"], flags=re.MULTILINE)
+            current_count = len(existing_matches)
+            
+            new_lines = ""
+            for i, ex in enumerate(selected_to_add, start=current_count + 1):
+                new_lines += f"\n\n{i}. {ex}\n1п: \n2п: \nДля заміток:"
+            
+            client["today_workout"] += new_lines
             st.rerun()
             
-        # Поле для введення підходів СУТО для цієї вправи
-        current_sets_val = client["today_workout_sets"].get(ex, "1п: \n2п: \nДля заміток:")
-        client["today_workout_sets"][ex] = st.text_area(
-            f"Підходи для {ex}:", 
-            value=current_sets_val, 
-            height=120, 
-            key=f"sets_{ex}_{i}",
-            label_visibility="collapsed"
-        )
-        st.markdown(" ")
+    st.markdown("---")
+
+    # Твоє улюблене суцільне поле, де ти пишеш як у Samsung Notes
+    client["today_workout"] = st.text_area("Твій щоденник тренування:", value=client["today_workout"], height=400)
+    
+    # --- ШВИДКИЙ ПЕРЕХІД ДО ІСТОРІЇ (БЕЗ HTML, ЧИСТІ КНОПКИ КЛІЄНТА) ---
+    current_exercises = re.findall(r'^\d+\.\s*(.+)', client["today_workout"], flags=re.MULTILINE)
+    if current_exercises:
+        st.markdown("---")
+        st.write("🔍 **Подивитися минулу історію вправи:**")
+        # Робимо випадаючий список суто з тих вправ, які ти СЬОГОДНІ вписала в текст
+        chosen_ex = st.selectbox("Обери вправу, щоб глянути її минулі ваги:", [e.strip() for e in current_exercises], key="quick_search")
+        if st.button(f"📖 Відкрити щоденник: {chosen_ex}"):
+            st.session_state.selected_exercise = chosen_ex
+            st.session_state.current_tab = "Історія вправи"
+            st.rerun()
 
     st.markdown("---")
-    
-    # КНОПКА ЗАВЕРШЕННЯ ТРЕНУВАННЯ
+    # КНОПКА ЗАВЕРШЕННЯ
     if st.button(f"✅ Завершити тренування {selected_client}", type="primary", use_container_width=True):
-        today_date = "Сьогодні 29.06.26" # Для тесту фіксована
-        day_title = f"{today_date} ({client['today_comment']})"
-        
-        # Розподіляємо по "Історіях вправ"
-        for ex in client["today_workout_exercises"]:
-            sets_data = client["today_workout_sets"].get(ex, "").strip()
-            history_entry = f"{day_title}\n{sets_data}\n\n"
-            client["exercise_history"][ex] = history_entry + client["exercise_history"].get(ex, "")
+        lines = client["today_workout"].split('\n')
+        if lines:
+            day_title = lines[0].strip()
+            current_ex = None
+            current_sets = []
+            exercises_done = []
             
-        # Записуємо в "Історію тренувань"
-        new_workout_record = f"{day_title}\n"
-        for i, ex in enumerate(client["today_workout_exercises"], 1):
-            new_workout_record += f"{i}. {ex}\n"
-        client["workout_history"] = new_workout_record + "\n\n" + client["workout_history"]
-        
-        # Очищаємо сьогоднішній день
-        client["today_workout_exercises"] = []
-        client["today_workout_sets"] = {}
-        client["today_comment"] = ""
-        st.success("Дані успішно розподілено по вкладках!")
-        st.rerun()
+            for line in lines[1:]:
+                match = re.match(r'^\d+\.\s*(.+)', line.strip())
+                if match:
+                    if current_ex:
+                        history_entry = f"{day_title}\n" + "\n".join(current_sets) + "\n\n"
+                        client["exercise_history"][current_ex] = history_entry + client["exercise_history"].get(current_ex, "")
+                        if current_ex not in client["exercise_list"]:
+                            client["exercise_list"] = f"{current_ex}\n" + client["exercise_list"]
+                    
+                    current_ex = match.group(1).strip()
+                    exercises_done.append(current_ex)
+                    current_sets = []
+                elif line.strip():
+                    current_sets.append(line.strip())
+            
+            if current_ex:
+                history_entry = f"{day_title}\n" + "\n".join(current_sets) + "\n\n"
+                client["exercise_history"][current_ex] = history_entry + client["exercise_history"].get(current_ex, "")
+                if current_ex not in client["exercise_list"]:
+                    client["exercise_list"] = f"{current_ex}\n" + client["exercise_list"]
+
+            new_workout_record = f"{day_title}\n"
+            for i, ex in enumerate(exercises_done, 1):
+                new_workout_record += f"{i}. {ex}\n"
+            client["workout_history"] = new_workout_record + "\n\n" + client["workout_history"]
+            
+            client["today_workout"] = "Сьогодні\n"
+            st.success(f"Дані успішно збережено!")
+            st.rerun()
 
 # ВКЛАДКА: СПИСОК ВПРАВ
 elif st.session_state.current_tab == "Список вправ":

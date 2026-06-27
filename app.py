@@ -46,7 +46,6 @@ st.markdown(
 DB_FILE = "clients_storage.json"
 
 def load_data():
-    """Завантажує дані з файлу. Якщо файлу немає — створює початкову базу."""
     if os.path.exists(DB_FILE):
         try:
             with open(DB_FILE, "r", encoding="utf-8") as f:
@@ -54,7 +53,6 @@ def load_data():
         except Exception:
             pass
             
-    # Початкова база за замовчуванням, якщо файл ще не створено
     default_data = {
         "Юля": {
             "exercise_list": "Біцепс палкою\nТріцепс палкою\nБіцепс молотки\nТріцепс віджимання\nПлечі махи\nПрес",
@@ -71,24 +69,20 @@ def load_data():
             "today_focus": "біцепс, тріцепс + плечі"
         }
     }
-    # Зберігаємо початкову базу відразу у файл
     with open(DB_FILE, "w", encoding="utf-8") as f:
         json.dump(default_data, f, ensure_ascii=False, indent=4)
     return default_data
 
 def save_data(data):
-    """Записує поточний стан даних у файл на сервері"""
     with open(DB_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=4)
 
-# Ініціалізація даних при старті додатка
+# Ініціалізація даних
 if 'clients_data' not in st.session_state:
     st.session_state.clients_data = load_data()
 
-
-# --- 2. БОКОВЕ МЕНЮ (Вибір/додавання людей) ---
+# --- 2. БОКОВЕ МЕНЮ ---
 st.sidebar.title("👥 Клієнтки")
-
 client_names = sorted(list(st.session_state.clients_data.keys()))
 selected_client = st.sidebar.selectbox("🙋‍♀️ Обери клієнтку:", client_names)
 
@@ -99,7 +93,6 @@ with st.sidebar.expander("➕ Додати нову клієнтку"):
         name_striped = new_client_name.strip()
         if name_striped:
             if name_striped not in st.session_state.clients_data:
-                # Додаємо нову дівчину в пам'ять
                 st.session_state.clients_data[name_striped] = {
                     "exercise_list": "",
                     "workout_history": "",
@@ -108,9 +101,8 @@ with st.sidebar.expander("➕ Додати нову клієнтку"):
                     "today_sets": {},
                     "today_focus": ""
                 }
-                # НАДВАЖЛИВО: Одразу зберігаємо оновлений список у файл!
                 save_data(st.session_state.clients_data)
-                st.success(f"Клієнтку {name_striped} додано й збережено!")
+                st.success(f"Клієнтку {name_striped} додано!")
                 st.rerun()
             else:
                 st.warning("Клієнтка з таким іменем вже існує!")
@@ -131,7 +123,6 @@ tab_history, tab_today, tab_list = st.tabs([
 # ВКЛАДКА 1: ІСТОРІЯ ТРЕНУВАНЬ
 with tab_history:
     st.subheader(f"📅 Загальна історія: {selected_client}")
-    # Якщо користувач вручну редагує історію, зберігаємо зміни
     old_history = client["workout_history"]
     client["workout_history"] = st.text_area("Перегляд історії:", value=old_history, height=500, key="history_textarea")
     if client["workout_history"] != old_history:
@@ -154,7 +145,6 @@ with tab_today:
             if st.checkbox(ex, value=is_chosen, key=f"select_{ex}"):
                 updated_selection.append(ex)
                 
-        # Слідкуємо за зміною галочок
         if updated_selection != client["today_exercises"]:
             client["today_exercises"] = updated_selection
             save_data(st.session_state.clients_data)
@@ -179,15 +169,24 @@ with tab_today:
         for i, ex in enumerate(client["today_exercises"], 1):
             st.subheader(f"{i}. {ex.upper()}")
             
-            # 1. Сьогоднішні підходи (200)
+            # ОТРИМУЄМО ПОТОЧНЕ ЗНАЧЕННЯ ДЛЯ ЦІЄЇ ВПРАВИ
             current_val = client["today_sets"].get(ex, "1п: \n2п: \n3п: \n4п: \nДля заміток:")
+            
+            # СТВОРЮЄМО КЛЮЧ ДЛЯ ЗБЕРЕЖЕННЯ СТАНУ В СЕСІЇ
+            session_key = f"input_{ex}_{i}"
+            if session_key not in st.session_state:
+                st.session_state[session_key] = current_val
+
+            # ПОЛЕ ВВОДУ З ДИНАМІЧНИМ ОНОВЛЕННЯМ (БЕЗ ВТРАТИ ДАНИХ)
             new_val = st.text_area(
                 f"Впиши підходи для {ex}:", 
-                value=current_val, 
+                value=st.session_state[session_key], 
                 height=200, 
-                key=f"input_{ex}_{i}",
+                key=session_key,
                 label_visibility="collapsed"
             )
+            
+            # ЯКЩО ТЕКСТ ЗМІНИВСЯ - ОДРАЗУ ПЕРЕЗАПИСУЄМО В ПАМ'ЯТЬ І ФАЙЛ
             if new_val != current_val:
                 client["today_sets"][ex] = new_val
                 save_data(st.session_state.clients_data)
@@ -223,12 +222,16 @@ with tab_today:
             new_workout += f"{i}. {ex}\n"
         client["workout_history"] = new_workout + "\n\n" + client["workout_history"]
         
-        # Очищення полей після завершення
+        # Повне очищення перед наступним разом
         client["today_exercises"] = []
         client["today_sets"] = {}
         client["today_focus"] = ""
         
-        # Запис фінальних результатів тренування у файл
+        # Очищаємо ключі вводу, щоб скинути віконця для нового тренування
+        for key in list(st.session_state.keys()):
+            if key.startswith("input_"):
+                del st.session_state[key]
+                
         save_data(st.session_state.clients_data)
         st.success("Дані збережено в архів файлу!")
         st.rerun()

@@ -49,7 +49,7 @@ def save_data(data):
     with open(DB_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=4)
 
-# Завантажуємо єдину базу даних
+# Завантажуємо базу даних один раз за сесію
 if "trainer_db" not in st.session_state:
     st.session_state.trainer_db = load_data()
 
@@ -59,7 +59,6 @@ db_data = st.session_state.trainer_db
 st.sidebar.title("👥 Клієнтки")
 client_names = sorted(list(db_data.keys()))
 
-# Ініціалізація активної клієнтки
 if "active_client_name" not in st.session_state:
     st.session_state.active_client_name = client_names[0]
 
@@ -73,7 +72,6 @@ if selected_client != st.session_state.active_client_name:
     st.session_state.active_client_name = selected_client
     st.rerun()
 
-# Додавання нової дівчини
 with st.sidebar.expander("➕ Додати нову клієнтку"):
     new_name = st.text_input("Ім'я:")
     if st.button("Створити"):
@@ -89,6 +87,11 @@ with st.sidebar.expander("➕ Додати нову клієнтку"):
             st.rerun()
 
 client = db_data[selected_client]
+
+# Гарантуємо наявність необхідних ключів у профілі клієнтки
+if "today_exercises" not in client: client["today_exercises"] = []
+if "today_sets" not in client: client["today_sets"] = {}
+if "exercise_history" not in client: client["exercise_history"] = {}
 
 # --- ГОЛОВНІ ВКЛАДКИ ---
 tab_history, tab_today, tab_list = st.tabs([
@@ -115,26 +118,23 @@ with tab_today:
         save_data(db_data)
         
     with st.expander("➕ Вибір та додавання вправ на сьогодні"):
-        # Поле для створення нової вправи "на льоту"
         st.markdown("**✨ Створити нову вправу:**")
         fast_new_ex = st.text_input("Введіть назву нової вправи:", key="fast_ex_input_key", placeholder="Наприклад: Присідання плиє")
         
         if st.button("➕ Додати цю вправу в план", use_container_width=True):
             ex_cleaned = fast_new_ex.strip()
             if ex_cleaned:
-                # 1. Додаємо в сьогоднішній план
-                if "today_exercises" not in client: client["today_exercises"] = []
                 if ex_cleaned not in client["today_exercises"]:
                     client["today_exercises"].append(ex_cleaned)
                 
-                # 2. Додаємо в загальний список вправ (з нового рядка), якщо її там немає
+                # Додаємо в загальний список
                 current_list = [line.strip() for line in client.get("exercise_list", "").split("\n") if line.strip()]
                 if ex_cleaned not in current_list:
                     current_list.append(ex_cleaned)
                     client["exercise_list"] = "\n".join(current_list)
                 
                 save_data(db_data)
-                st.success(f"Вправу '{ex_cleaned}' додано на сьогодні та збережено в базу!")
+                st.success(f"Вправу '{ex_cleaned}' додано!")
                 st.rerun()
                 
         st.markdown("---")
@@ -143,29 +143,33 @@ with tab_today:
         raw_list = [line.strip() for line in client.get("exercise_list", "").split("\n") if line.strip()]
         updated_sel = []
         for ex in raw_list:
-            is_ch = ex in client.get("today_exercises", [])
+            is_ch = ex in client["today_exercises"]
             if st.checkbox(ex, value=is_ch, key=f"check_ex_{ex}"):
                 updated_sel.append(ex)
-        if updated_sel != client.get("today_exercises", []):
+                
+        if updated_sel != client["today_exercises"]:
             client["today_exercises"] = updated_sel
             save_data(db_data)
             st.rerun()
 
     st.markdown("---")
     
-    today_exs = client.get("today_exercises", [])
+    today_exs = client["today_exercises"]
     if not today_exs:
         st.info("Виберіть або створіть вправи в блоці вище.")
     else:
         for i, ex in enumerate(today_exs, 1):
             st.subheader(f"{i}. {ex.upper()}")
             
-            # Поточні підходи
-            c_sets = client.get("today_sets", {}).get(ex, "1п: \n2п: \n3п: \n4п: \nДля заміток:")
+            # Стандартний шаблон, якщо поле пусте
+            default_template = "1п: \n2п: \n3п: \n4п: \nДля заміток:"
+            c_sets = client["today_sets"].get(ex, default_template)
+            if not c_sets.strip():
+                c_sets = default_template
             
-            # Створюємо унікальний ключ для кожного поля вводу
             input_key = f"textarea_sets_{selected_client}_{ex}_{i}"
             
+            # Слідкуємо за тим, щоб збережене значення завжди відображалося правильно
             n_sets = st.text_area(
                 f"Введіть підходи для {ex}:", 
                 value=c_sets, 
@@ -174,18 +178,19 @@ with tab_today:
                 label_visibility="collapsed"
             )
             
-            # Оновлюємо внутрішній стан при зміні тексту
-            if n_sets != c_sets:
-                if "today_sets" not in client: client["today_sets"] = {}
+            # Якщо текст у полі змінився, записуємо його в сесію
+            if n_sets != client["today_sets"].get(ex):
                 client["today_sets"][ex] = n_sets
 
-            # Надійна кнопка збереження чернетки під кожною вправою
+            # ЗАЛІЗОБЕТОННА КНОПКА ФІКСАЦІЇ
             if st.button(f"💾 Фіксувати ваги для вправи №{i}", key=f"btn_save_item_{ex}_{i}", use_container_width=True):
+                # Примусово беремо поточний стан саме з цього текстового поля
+                client["today_sets"][ex] = st.session_state[input_key]
                 save_data(db_data)
-                st.toast(f"Вправа №{i} надійно збережена в чернетку!")
+                st.toast(f"Вправа №{i} ({ex}) збережена в чернетку!")
 
             # Минула історія
-            p_hist = client.get("exercise_history", {}).get(ex, "Історія вправи порожня.")
+            p_hist = client["exercise_history"].get(ex, "Історія вправи порожня.")
             st.text_area("📜 Минула історія:", value=p_hist, height=310, key=f"past_history_view_{ex}_{i}", disabled=True)
             st.markdown("---")
 
@@ -198,10 +203,9 @@ with tab_today:
             day_header = f"{today_date} ({client.get('today_focus', '')})"
             
             for ex in today_exs:
-                s_txt = client.get("today_sets", {}).get(ex, "").strip()
+                s_txt = client["today_sets"].get(ex, "").strip()
                 if s_txt:
                     new_e = f"{day_header}\n{s_txt}\n\n"
-                    if "exercise_history" not in client: client["exercise_history"] = {}
                     client["exercise_history"][ex] = new_e + client["exercise_history"].get(ex, "")
             
             new_w = f"{day_header}\n"

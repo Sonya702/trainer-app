@@ -42,35 +42,38 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-# --- ФУНКЦІЇ ДЛЯ РОБОТИ З ФАЙЛОМ ПАМ'ЯТІ ---
+# --- ФУНКЦІЇ ДЛЯ РОБОТИ З БАЗОЮ ДАНИХ ---
 DB_FILE = "clients_storage.json"
+LAST_CLIENT_FILE = "last_client.txt"
 
 def load_data():
+    """Завантажує чисту базу клієнток без зайвих вкладеностей"""
     if os.path.exists(DB_FILE):
         try:
             with open(DB_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
+                data = json.load(f)
+                # Якщо раптом з минулого разу залишилася стара структура, дістаємо з неї тільки клієнток
+                if isinstance(data, dict) and "clients" in data:
+                    return data["clients"]
+                return data
         except Exception:
             pass
             
-    # Базова структура, якщо файлу ще немає
+    # Початкова база, якщо файл порожній або пошкоджений
     default_data = {
-        "last_selected_client": "Юля",
-        "clients": {
-            "Юля": {
-                "exercise_list": "Біцепс палкою\nТріцепс палкою\nБіцепс молотки\nТріцепс віджимання\nПлечі махи\nПрес",
-                "workout_history": "Вівторок 27.06.26 (біцепс, тріцепс + плечі)\n1. Біцепс палкою\n2. Тріцепс палкою\n3. Біцепс молотки\n4. Тріцепс віджимання\n5. Плечі махи\n6. Прес",
-                "exercise_history": {
-                    "Біцепс палкою": "Вівторок 27.06.26\n1п: 15кг 15р 3з\n2п: 20кг 12р 2з\n3п: 20кг 12р 1з\n4п: 20кг 12р 1з\nДля заміток: 4 підхід останні 2 без техніки\n\nНеділя 25.06.26\n1п: 15кг 15р RIR 4",
-                    "Тріцепс палкою": "Вівторок 27.06.26\n1п: 15кг 15р 3з\n2п: 20кг 12р 2з\nДля заміток:\n\nНеділя 25.06.26\n1п: 15кг 15р RIR 4"
-                },
-                "today_exercises": ["Біцепс палкою", "Тріцепс палкою"],
-                "today_sets": {
-                    "Біцепс палкою": "1п: 15кг 15р 3з\n2п: 20кг 12р 2з\n3п: 20кг 12р 1з\n4п: 20кг 12р 1з\nДля заміток: 4 підхід останні 2 без техніки",
-                    "Тріцепс палкою": "1п: 15кг 15р 3з\n2п: 20кг 12р 2з\n3п: 20кг 12р 1з\n4п: 20кг 12р 1з\nДля заміток:"
-                },
-                "today_focus": "біцепс, тріцепс + плечі"
-            }
+        "Юля": {
+            "exercise_list": "Біцепс палкою\nТріцепс палкою\nБіцепс молотки\nТріцепс віджимання\nПлечі махи\nПрес",
+            "workout_history": "Вівторок 27.06.26 (біцепс, тріцепс + плечі)\n1. Біцепс палкою\n2. Тріцепс палкою\n3. Біцепс молотки\n4. Тріцепс віджимання\n5. Плечі махи\n6. Прес",
+            "exercise_history": {
+                "Біцепс палкою": "Вівторок 27.06.26\n1п: 15кг 15р 3з\n2п: 20кг 12р 2з\n3п: 20кг 12р 1з\n4п: 20кг 12р 1з\nДля заміток: 4 підхід останні 2 без техніки\n\nНеділя 25.06.26\n1п: 15кг 15р RIR 4",
+                "Тріцепс палкою": "Вівторок 27.06.26\n1п: 15кг 15р 3з\n2п: 20кг 12р 2з\nДля заміток:\n\nНеділя 25.06.26\n1п: 15кг 15р RIR 4"
+            },
+            "today_exercises": ["Біцепс палкою", "Тріцепс палкою"],
+            "today_sets": {
+                "Біцепс палкою": "1п: 15кг 15р 3з\n2п: 20кг 12р 2з\n3п: 20кг 12р 1з\n4п: 20кг 12р 1з\nДля заміток: 4 підхід останні 2 без техніки",
+                "Тріцепс палкою": "1п: 15кг 15р 3з\n2п: 20кг 12р 2з\n3п: 20кг 12р 1з\n4п: 20кг 12р 1з\nДля заміток:"
+            },
+            "today_focus": "біцепс, тріцепс + плечі"
         }
     }
     with open(DB_FILE, "w", encoding="utf-8") as f:
@@ -81,36 +84,37 @@ def save_data(data):
     with open(DB_FILE, "w", encoding="utf-8") as f:
         json.dump(data, f, ensure_ascii=False, indent=4)
 
-# Завантажуємо базу при старті
-if 'full_db' not in st.session_state:
-    st.session_state.full_db = load_data()
+def get_last_client():
+    if os.path.exists(LAST_CLIENT_FILE):
+        with open(LAST_CLIENT_FILE, "r", encoding="utf-8") as f:
+            return f.read().strip()
+    return "Юля"
 
-# Якщо у файлі стара структура без "clients", виправляємо її на льоту
-if "clients" not in st.session_state.full_db:
-    st.session_state.full_db = {
-        "last_selected_client": list(st.session_state.full_db.keys())[0] if st.session_state.full_db else "Юля",
-        "clients": st.session_state.full_db
-    }
+def save_last_client(name):
+    with open(LAST_CLIENT_FILE, "w", encoding="utf-8") as f:
+        f.write(name)
 
-db = st.session_state.full_db
-clients_dict = db["clients"]
+# Ініціалізація даних у сесії
+if 'clients_data' not in st.session_state:
+    st.session_state.clients_data = load_data()
+
+clients_dict = st.session_state.clients_data
 
 # --- 2. БОКОВЕ МЕНЮ ---
 st.sidebar.title("👥 Клієнтки")
-
 client_names = sorted(list(clients_dict.keys()))
 
-# Визначаємо індекс останньої обраної клієнтки, щоб вона відкривалася автоматично
+# Визначаємо, яку клієнтку відкрити за замовчуванням
+last_client = get_last_client()
 default_index = 0
-if db.get("last_selected_client") in client_names:
-    default_index = client_names.index(db["last_selected_client"])
+if last_client in client_names:
+    default_index = client_names.index(last_client)
 
 selected_client = st.sidebar.selectbox("🙋‍♀️ Обери клієнтку:", client_names, index=default_index)
 
-# Запам'ятовуємо вибір, якщо він змінився
-if selected_client != db.get("last_selected_client"):
-    db["last_selected_client"] = selected_client
-    save_data(db)
+# Якщо обрали іншу дівчину — запам'ятовуємо її в окремий файл
+if selected_client != last_client:
+    save_last_client(selected_client)
 
 st.sidebar.markdown("---")
 with st.sidebar.expander("➕ Додати нову клієнтку"):
@@ -127,8 +131,8 @@ with st.sidebar.expander("➕ Додати нову клієнтку"):
                     "today_sets": {},
                     "today_focus": ""
                 }
-                db["last_selected_client"] = name_striped
-                save_data(db)
+                save_last_client(name_striped)
+                save_data(clients_dict)
                 st.success(f"Клієнтку {name_striped} додано!")
                 st.rerun()
             else:
@@ -153,22 +157,22 @@ with tab_history:
     old_history = client["workout_history"]
     client["workout_history"] = st.text_area("Перегляд історії:", value=old_history, height=500, key="history_textarea")
     if client["workout_history"] != old_history:
-        save_data(db)
+        save_data(clients_dict)
 
 # ВКЛАДКА 2: СЬОГОДНІШНЄ ТРЕНУВАННЯ
 with tab_today:
     st.subheader(f"Тренування: {selected_client}")
     
-    # КНОПКА ЗАГАЛЬНОГО ЗБЕРЕЖЕННЯ ВГОРІ
+    # Велика кнопка збереження чернетки
     if st.button("💾 ЗБЕРЕГТИ ВСІ ЗМІНИ ЯК ЧЕРНЕТКУ", key="top_save_btn", use_container_width=True):
-        save_data(db)
-        st.success("Усі підходи та фокус залізобетонно збережено!")
+        save_data(clients_dict)
+        st.success("Усі підходи та фокус залізобетонно збережено у файл!")
     
     st.markdown(" ")
     old_focus = client["today_focus"]
     client["today_focus"] = st.text_input("Фокус дня:", value=old_focus, key="focus_input")
     if client["today_focus"] != old_focus:
-        save_data(db)
+        save_data(clients_dict)
     
     with st.expander("➕ Повибирати вправи зі списку або дописати нову"):
         raw_list = [line.strip() for line in client["exercise_list"].split("\n") if line.strip()]
@@ -180,7 +184,7 @@ with tab_today:
                 
         if updated_selection != client["today_exercises"]:
             client["today_exercises"] = updated_selection
-            save_data(db)
+            save_data(clients_dict)
                 
         new_ex_input = st.text_input("Дописати нову вправу руками:")
         if st.button("Додати в план"):
@@ -191,7 +195,7 @@ with tab_today:
                 else:
                     client["exercise_list"] = new_ex_input.strip()
                 client["today_exercises"] = updated_selection
-                save_data(db)
+                save_data(clients_dict)
                 st.rerun()
 
     st.markdown("---")
@@ -218,12 +222,11 @@ with tab_today:
             
             if new_val != current_val:
                 client["today_sets"][ex] = new_val
-                # Зберігаємо локально в сесію
                 st.session_state[session_key] = new_val
 
-            # Кнопочка збереження під кожною вправою
-            if st.button(f"💾 Зберегти підходи для вправи №{i}", key=f"save_ex_{i}"):
-                save_data(db)
+            # Кнопка збереження під кожною окремою вправою
+            if st.button(f"💾 Зберегти вправу №{i}", key=f"save_ex_{i}"):
+                save_data(clients_dict)
                 st.toast(f"Вправа №{i} збережена!")
             
             # 2. Минула історія (310)
@@ -264,8 +267,8 @@ with tab_today:
             if key.startswith("input_"):
                 del st.session_state[key]
                 
-        save_data(db)
-        st.success("Дані збережено в архів файлу!")
+        save_data(clients_dict)
+        st.success("Дані збережено в архів історії!")
         st.rerun()
 
 # ВКЛАДКА 3: СПИСОК ВПРАВ
@@ -274,4 +277,4 @@ with tab_list:
     old_list = client["exercise_list"]
     client["exercise_list"] = st.text_area("Редагувати список:", value=old_list, height=500, key="list_textarea")
     if client["exercise_list"] != old_list:
-        save_data(db)
+        save_data(clients_dict)

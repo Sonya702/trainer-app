@@ -63,18 +63,23 @@ with st.sidebar.expander("➕ Додати нову клієнтку"):
 client = st.session_state.clients_data[selected_client]
 
 
-# --- 3. ГОЛОВНІ ВКЛАДКИ НАД КОРПУСОМ СТОРІНКИ ---
-# Створюємо вкладки прямо вгорі екрана, бокове меню більше не смикаємо!
-tab_today, tab_list, tab_history = st.tabs([
+# --- 3. ГОЛОВНІ ВКЛАДКИ НАД КОРПУСОМ СТОРІНКИ (Новий порядок) ---
+tab_history, tab_today, tab_list = st.tabs([
+    "📅 Історія тренувань",
     "📝 Сьогоднішнє тренування", 
-    "📋 Список вправ", 
-    "📅 Історія тренувань"
+    "📋 Список вправ"
 ])
 
 
 # --- 4. ЛОГІКА РОБОТИ ВКЛАДОК ---
 
-# ВКЛАДКА: СЬОГОДНІШНЄ ТРЕНУВАННЯ
+# ВКЛАДКА 1: ІСТОРІЯ ТРЕНУВАНЬ (Тепер відкривається першою)
+with tab_history:
+    st.subheader(f"📅 Загальна історія тренувань: {selected_client}")
+    client["workout_history"] = st.text_area("Перегляд історії:", value=client["workout_history"], height=500, key="history_textarea")
+
+
+# ВКЛАДКА 2: СЬОГОДНІШНЄ ТРЕНУВАННЯ
 with tab_today:
     st.subheader(f"Тренування: {selected_client}")
     
@@ -164,14 +169,8 @@ with tab_today:
         st.rerun()
 
 
-# ВКЛАДКА: СПИСОК ВПРАВ
+# ВКЛАДКА 3: СПИСОК ВПРАВ
 with tab_list:
     st.subheader(f"📋 Список вправ: {selected_client}")
     st.info("Тут ти можеш вставити або відредагувати весь список вправ для цієї клієнтки.")
     client["exercise_list"] = st.text_area("Редагувати список:", value=client["exercise_list"], height=500, key="list_textarea")
-
-
-# ВКЛАДКА: ІСТОРІЯ ТРЕНУВАНЬ
-with tab_history:
-    st.subheader(f"📅 Загальна історія тренувань: {selected_client}")
-    client["workout_history"] = st.text_area("Перегляд історії:", value=client["workout_history"], height=500, key="history_textarea")

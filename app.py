@@ -114,7 +114,32 @@ with tab_today:
         client["today_focus"] = u_focus
         save_data(db_data)
         
-    with st.expander("➕ Вибір вправ на сьогодні"):
+    with st.expander("➕ Вибір та додавання вправ на сьогодні"):
+        # Поле для створення нової вправи "на льоту"
+        st.markdown("**✨ Створити нову вправу:**")
+        fast_new_ex = st.text_input("Введіть назву нової вправи:", key="fast_ex_input_key", placeholder="Наприклад: Присідання плиє")
+        
+        if st.button("➕ Додати цю вправу в план", use_container_width=True):
+            ex_cleaned = fast_new_ex.strip()
+            if ex_cleaned:
+                # 1. Додаємо в сьогоднішній план
+                if "today_exercises" not in client: client["today_exercises"] = []
+                if ex_cleaned not in client["today_exercises"]:
+                    client["today_exercises"].append(ex_cleaned)
+                
+                # 2. Додаємо в загальний список вправ (з нового рядка), якщо її там немає
+                current_list = [line.strip() for line in client.get("exercise_list", "").split("\n") if line.strip()]
+                if ex_cleaned not in current_list:
+                    current_list.append(ex_cleaned)
+                    client["exercise_list"] = "\n".join(current_list)
+                
+                save_data(db_data)
+                st.success(f"Вправу '{ex_cleaned}' додано на сьогодні та збережено в базу!")
+                st.rerun()
+                
+        st.markdown("---")
+        st.markdown("**📋 Вибрати з існуючих:**")
+        
         raw_list = [line.strip() for line in client.get("exercise_list", "").split("\n") if line.strip()]
         updated_sel = []
         for ex in raw_list:
@@ -130,7 +155,7 @@ with tab_today:
     
     today_exs = client.get("today_exercises", [])
     if not today_exs:
-        st.info("Виберіть вправи в блоці вище.")
+        st.info("Виберіть або створіть вправи в блоці вище.")
     else:
         for i, ex in enumerate(today_exs, 1):
             st.subheader(f"{i}. {ex.upper()}")
@@ -154,7 +179,7 @@ with tab_today:
                 if "today_sets" not in client: client["today_sets"] = {}
                 client["today_sets"][ex] = n_sets
 
-            # Надійна та зрозуміла кнопка збереження під кожною вправою
+            # Надійна кнопка збереження чернетки під кожною вправою
             if st.button(f"💾 Фіксувати ваги для вправи №{i}", key=f"btn_save_item_{ex}_{i}", use_container_width=True):
                 save_data(db_data)
                 st.toast(f"Вправа №{i} надійно збережена в чернетку!")

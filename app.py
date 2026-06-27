@@ -141,28 +141,28 @@ with tab_today:
         st.info("Виберіть або допишіть вправи вище.")
     else:
         for i, ex in enumerate(client["today_exercises"], 1):
-            st.subheader(f"{i}. {ex.upper()}") # Назва вправи тепер КАПСОМ для кращої видимості
+            st.subheader(f"{i}. {ex.upper()}")
             
-            # 1. ЗБІЛЬШЕНЕ ПЕРШЕ ВІКОНЦЕ (Сьогоднішні підходи, висота 180)
+            # 1. СЬОГОДНІШНІ ПІДХОДИ (ВИСОТА ЗБІЛЬШЕНА ДО 200)
             current_val = client["today_sets"].get(ex, "1п: \n2п: \n3п: \n4п: \nДля заміток:")
             client["today_sets"][ex] = st.text_area(
                 f"Впиши підходи для {ex}:", 
                 value=current_val, 
-                height=180, 
+                height=200, 
                 key=f"input_{ex}_{i}",
                 label_visibility="collapsed"
             )
             
-            # 2. ПОДОВЖЕНЕ ДРУГЕ ВІКОНЦЕ (Минула історія, висота 250)
+            # 2. МИНУЛА ІСТОРІЯ (ВИСОТА ЗБІЛЬШЕНА ДО 310)
             past_history = client["exercise_history"].get(ex, "Історія порожня (це перше тренування для цієї вправи).")
             st.text_area(
                 f"📜 Минула історія:", 
                 value=past_history, 
-                height=250, 
+                height=310, 
                 key=f"history_{ex}_{i}", 
                 disabled=True
             )
-            st.markdown("<br>", unsafe_allow_html=True) # Додатковий відступ між вправами
+            st.markdown("<br>", unsafe_allow_html=True)
             st.markdown("---")
 
     if st.button(f"✅ Завершити тренування {selected_client}", type="primary", use_container_width=True):

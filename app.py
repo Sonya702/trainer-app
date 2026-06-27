@@ -12,7 +12,7 @@ if 'clients_data' not in st.session_state:
             "exercise_history": {
                 "Біцепс палкою": "Вівторок 27.06.26\n1п: 15кг 15р 3з\n2п: 20кг 12р 2з\nДля заміток: все супер"
             },
-            "today_workout": "Сьогодні 29.06.26 (спина, руки)\n\n1. Біцепс палкою\n1п: 15кг 15р 3з\n\n2. Тріцепс палкою\n1п: 15кг 15р 3з"
+            "today_workout": "Сьогодні 29.06.26 (спина, руки)\n"
         },
         "Олена": {
             "exercise_list": "Присідання\nВипади\nТяга верхнього блоку\nPlank",
@@ -20,7 +20,7 @@ if 'clients_data' not in st.session_state:
             "exercise_history": {
                 "Присідання": "П'ятниця 26.06.26\n1п: 30кг 12р 2з"
             },
-            "today_workout": "Сьогодні 29.06.26 (Всього тіла)\n\n1. Тяга верхнього блоку\n1п: 25кг 12р 3з"
+            "today_workout": "Сьогодні 29.06.26 (Всього тіла)\n"
         }
     }
 
@@ -30,15 +30,12 @@ if 'selected_exercise' not in st.session_state:
 # --- 2. ВИБІР КЛІЄНТКИ ТА ВКЛАДКИ У БОКОВОМУ МЕНЮ ---
 st.sidebar.title("🗂️ Керування")
 
-# Вибір дівчини
 client_names = list(st.session_state.clients_data.keys())
 selected_client = st.sidebar.selectbox("🙋‍♀️ Обери клієнтку:", client_names)
 
-# Меню вкладок для вибраної дівчини
 tabs = ["Сьогодні", "Список вправ", "Історія тренувань", "Історія вправи"]
 current_tab = st.sidebar.radio("Перейти до:", tabs)
 
-# Створюємо зручне посилання на дані саме цієї дівчини, щоб не писати довгий код
 client = st.session_state.clients_data[selected_client]
 
 # --- 3. ЛОГІКА РОБОТИ ВКЛАДОК ---
@@ -47,18 +44,44 @@ client = st.session_state.clients_data[selected_client]
 if current_tab == "Сьогодні":
     st.header(f"📝 {selected_client}: Тренування сьогодні")
     
-    # Поле заповнення (індивідуальне для кожної дівчини)
+    # --- НОВА ФІШКА: ВИБІР ВПРАВ ЗІ СПИСКУ ---
+    with st.expander("➕ Додати вправи зі списку Юлі/Олени на сьогодні"):
+        # Розбираємо чистий список вправ на окремі рядки, ігноруючи пусті
+        raw_exercises = [line.strip() for line in client["exercise_list"].split("\n") if line.strip()]
+        
+        st.write("Познач вправи, які плануєш дати сьогодні:")
+        selected_to_add = []
+        for ex in raw_exercises:
+            if st.checkbox(ex, key=f"check_{ex}"):
+                selected_to_add.append(ex)
+        
+        if st.button("Вставити вибрані вправи в блокнот"):
+            # Рахуємо, скільки вправ уже є в полі "Сьогодні"
+            existing_matches = re.findall(r'^\d+\.\s*', client["today_workout"], flags=re.MULTILINE)
+            current_count = len(existing_matches)
+            
+            # Дописуємо нові вправи з правильним порядковим номером
+            new_lines = ""
+            for i, ex in enumerate(selected_to_add, start=current_count + 1):
+                new_lines += f"\n{i}. {ex}\n"
+            
+            client["today_workout"] += new_lines
+            st.success("Вправи успішно додано нижче!")
+            st.rerun()
+            
+    st.markdown("---")
+
+    # Головне поле заповнення тренування
     client["today_workout"] = st.text_area("Заповнюй підходи тут:", value=client["today_workout"], height=350)
     
     # Кнопки швидкого переходу до історії конкретної вправи
-    st.markdown("---")
     st.write("🔍 **Швидкий перехід до історії вправи:**")
     current_exercises = re.findall(r'^\d+\.\s*(.+)', client["today_workout"], flags=re.MULTILINE)
     
     cols = st.columns(4)
     for i, ex in enumerate(current_exercises):
         with cols[i % 4]:
-            if st.button(f"📖 {ex.strip()}"):
+            if st.button(f"📖 {ex.strip()}", key=f"btn_{ex}_{i}"):
                 st.session_state.selected_exercise = ex.strip()
                 st.info(f"Перейди на вкладку 'Історія вправи' у лівому меню, щоб побачити щоденник для: {ex.strip()}")
                 st.rerun()
@@ -94,15 +117,13 @@ if current_tab == "Сьогодні":
                 if current_ex not in client["exercise_list"]:
                     client["exercise_list"] = f"{current_ex}\n" + client["exercise_list"]
 
-            # Запис в загальну історію
             new_workout_record = f"{day_title}\n"
             for i, ex in enumerate(exercises_done, 1):
                 new_workout_record += f"{i}. {ex}\n"
             client["workout_history"] = new_workout_record + "\n\n" + client["workout_history"]
             
-            # Очищення
             client["today_workout"] = ""
-            st.success(f"Дані Олени/Юлі успішно розподілено!")
+            st.success(f"Дані успішно розподілено!")
             st.rerun()
 
 # ВКЛАДКА: СПИСОК ВПРАВ
@@ -112,7 +133,7 @@ elif current_tab == "Список вправ":
 
 # ВКЛАДКА: ІСТОРІЯ ТРЕНУВАНЬ
 elif current_tab == "Історія тренувань":
-    st.header(f"📅 Загальна історія: {selected_client}")
+    st.header(f"📅 Загальна領історія: {selected_client}")
     client["workout_history"] = st.text_area("Перегляд історії:", value=client["workout_history"], height=500)
 
 # ВКЛАДКА: ІСТОРІЯ ВПРАВИ

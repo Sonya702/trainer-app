@@ -3,7 +3,7 @@ import re
 
 st.set_page_config(page_title="Блокнот Тренера", page_icon="🏋️‍♀️", layout="centered")
 
-# --- 1. СТВОРЕННЯ БАЗИ ДАНИХ ---
+# --- 1. СТВОРЕННЯ ТА ЗБЕРЕЖЕННЯ БАЗИ ДАНИХ КЛІЄНТОК ---
 if 'clients_data' not in st.session_state:
     st.session_state.clients_data = {
         "Юля": {
@@ -22,26 +22,54 @@ if 'clients_data' not in st.session_state:
         }
     }
 
-# --- 2. БОКОВЕ МЕНЮ (Клієнтка + Вкладки) ---
+# --- 2. БОКОВЕ МЕНЮ (Керування клієнтками та вкладки) ---
 st.sidebar.title("🗂️ Керування")
 
 # Вибір клієнтки
-client_names = list(st.session_state.clients_data.keys())
+client_names = sorted(list(st.session_state.clients_data.keys()))
 selected_client = st.sidebar.selectbox("🙋‍♀️ Обери клієнтку:", client_names)
-client = st.session_state.clients_data[selected_client]
 
-# Вкладки
+# --- НОВА ФІШКА: СТВОРЕННЯ НОВОЇ КЛІЄНТКИ ---
+st.sidebar.markdown("---")
+with st.sidebar.expander("➕ Додати нову клієнтку"):
+    new_client_name = st.text_input("Ім'я клієнтки:", key="new_client_name_input")
+    if st.button("Створити профіль"):
+        name_striped = new_client_name.strip()
+        if name_striped:
+            if name_striped not in st.session_state.clients_data:
+                # Створюємо пустий шаблон для нової дівчини
+                st.session_state.clients_data[name_striped] = {
+                    "exercise_list": "",
+                    "workout_history": "",
+                    "exercise_history": {},
+                    "today_exercises": [],
+                    "today_sets": {},
+                    "today_focus": ""
+                }
+                st.success(f"Клієнтку {name_striped} додано!")
+                st.rerun()
+            else:
+                st.warning("Клієнтка з таким іменем вже існує!")
+        else:
+            st.error("Введіть ім'я!")
+
+st.sidebar.markdown("---")
+
+# Вкладки додатка
 tabs = ["Сьогоднішнє тренування", "Список вправ", "Історія тренувань"]
 current_tab = st.sidebar.radio("Перейти до:", tabs)
 
-# --- 3. ЛОГІКА ВКЛАДОК ---
+# Посилання на дані вибраної клієнтки
+client = st.session_state.clients_data[selected_client]
+
+# --- 3. ЛОГІКА РОБОТИ ВКЛАДОК ---
 
 # ВКЛАДКА: СЬОГОДНІШНЄ ТРЕНУВАННЯ
 if current_tab == "Сьогоднішнє тренування":
     st.header(f"📝 {selected_client}: Сьогоднішнє тренування")
     
     # Фокус дня
-    client["today_focus"] = st.text_input("Фокус дня (наприклад: біцепс, тріцепс + плечі):", value=client["today_focus"])
+    client["today_focus"] = st.text_input("Фокус дня (наприклад: сідниці, спина/руки):", value=client["today_focus"])
     
     # Блок додавання вправ
     with st.expander("➕ Повибирати вправи зі списку або дописати нову"):
@@ -59,7 +87,11 @@ if current_tab == "Сьогоднішнє тренування":
         if st.button("Додати нову вправу в план"):
             if new_ex_input.strip() and new_ex_input.strip() not in updated_selection:
                 updated_selection.append(new_ex_input.strip())
-                client["exercise_list"] = new_ex_input.strip() + "\n" + client["exercise_list"]
+                if client["exercise_list"]:
+                    client["exercise_list"] = new_ex_input.strip() + "\n" + client["exercise_list"]
+                else:
+                    client["exercise_list"] = new_ex_input.strip()
+                st.rerun()
                 
         client["today_exercises"] = updated_selection
 
@@ -67,7 +99,7 @@ if current_tab == "Сьогоднішнє тренування":
     
     # СТРІЧКА ТРЕНУВАННЯ
     if not client["today_exercises"]:
-        st.info("Будь ласка, вибери або допиши вправи в блоці вище.")
+        st.info("Будь ласка, вибери або допиши вправи в блоці вище, щоб розпочати.")
     else:
         for i, ex in enumerate(client["today_exercises"], 1):
             st.subheader(f"{i}. {ex}")
@@ -83,19 +115,24 @@ if current_tab == "Сьогоднішнє тренування":
             )
             
             # 2. МИНУЛА ІСТОРІЯ ПРЯМО НИЖЧЕ (Скрол у вікні)
-            past_history = client["exercise_history"].get(ex, "Історія порожня.")
+            past_history = client["exercise_history"].get(ex, "Історія порожня (це перше тренування для цієї вправи).")
             st.text_area(
                 f"📜 Минула історія по вправі «{ex}» (лише скрол):", 
                 value=past_history, 
                 height=120, 
                 key=f"history_{ex}_{i}", 
-                disabled=True # Поле закрите для редагування, суто для читання
+                disabled=True
             )
-            st.markdown("---") # Візуальний розділювач між вправами
+            st.markdown("---")
 
     # КНОПКА ЗАВЕРШЕННЯ
     if st.button(f"✅ Завершити тренування {selected_client}", type="primary", use_container_width=True):
-        today_date = "Вівторок 27.06.26" # Фіксована для тесту
+        import datetime
+        # Автоматично беремо сьогоднішню дату українською
+        days_ua = ["Понеділок", "Вівторок", "Середа", "Четвер", "П'ятниця", "Субота", "Неділя"]
+        now = datetime.datetime.now()
+        today_date = f"{days_ua[now.weekday()]} {now.strftime('%d.%m.%y')}"
+        
         day_header = f"{today_date} ({client['today_focus']})"
         
         # Розкидаємо по історіях вправ
@@ -121,6 +158,7 @@ if current_tab == "Сьогоднішнє тренування":
 # ВКЛАДКА: СПИСОК ВПРАВ
 elif current_tab == "Список вправ":
     st.header(f"📋 Список вправ: {selected_client}")
+    st.info("Тут ти можеш вставити або відредагувати весь список вправ для цієї клієнтки (кожна вправа з нового рядка).")
     client["exercise_list"] = st.text_area("Редагувати список:", value=client["exercise_list"], height=500)
 
 # ВКЛАДКА: ІСТОРІЯ ТРЕНУВАНЬ

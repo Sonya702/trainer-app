@@ -2,12 +2,12 @@ import streamlit as st
 import re
 import datetime
 
-# --- НАЛАШТУВАННЯ СТОРІНКИ (Додано автоматичний стан бокового меню) ---
+# --- НАЛАШТУВАННЯ СТОРІНКИ ---
 st.set_page_config(
     page_title="Блокнот Тренера", 
     page_icon="🏋️‍♀️", 
     layout="centered",
-    initial_sidebar_state="collapsed"  # Цей рядок автоматично ховає меню на мобільних!
+    initial_sidebar_state="collapsed" # Меню закрите за замовчуванням
 )
 
 # --- 1. СТВОРЕННЯ ТА ЗБЕРЕЖЕННЯ БАЗИ ДАНИХ КЛІЄНТОК ---
@@ -29,8 +29,8 @@ if 'clients_data' not in st.session_state:
         }
     }
 
-# --- 2. БОКОВЕ МЕНЮ (Керування клієнтками та вкладки) ---
-st.sidebar.title("🗂️ Керування")
+# --- 2. БОКОВЕ МЕНЮ (Суто для вибору/додавання людей) ---
+st.sidebar.title("👥 Клієнтки")
 
 # Вибір клієнтки
 client_names = sorted(list(st.session_state.clients_data.keys()))
@@ -59,23 +59,27 @@ with st.sidebar.expander("➕ Додати нову клієнтку"):
         else:
             st.error("Введіть ім'я!")
 
-st.sidebar.markdown("---")
-
-# Вкладки додатка
-tabs = ["Сьогоднішнє тренування", "Список вправ", "Історія тренувань"]
-current_tab = st.sidebar.radio("Перейти до:", tabs)
-
 # Посилання на дані вибраної клієнтки
 client = st.session_state.clients_data[selected_client]
 
-# --- 3. ЛОГІКА РОБОТИ ВКЛАДОК ---
+
+# --- 3. ГОЛОВНІ ВКЛАДКИ НАД КОРПУСОМ СТОРІНКИ ---
+# Створюємо вкладки прямо вгорі екрана, бокове меню більше не смикаємо!
+tab_today, tab_list, tab_history = st.tabs([
+    "📝 Сьогоднішнє тренування", 
+    "📋 Список вправ", 
+    "📅 Історія тренувань"
+])
+
+
+# --- 4. ЛОГІКА РОБОТИ ВКЛАДОК ---
 
 # ВКЛАДКА: СЬОГОДНІШНЄ ТРЕНУВАННЯ
-if current_tab == "Сьогоднішнє тренування":
-    st.header(f"📝 {selected_client}: Сьогоднішнє тренування")
+with tab_today:
+    st.subheader(f"Тренування: {selected_client}")
     
     # Фокус дня
-    client["today_focus"] = st.text_input("Фокус дня (наприклад: сідниці, спина/руки):", value=client["today_focus"])
+    client["today_focus"] = st.text_input("Фокус дня (наприклад: сідниці, спина/руки):", value=client["today_focus"], key="focus_input")
     
     # Блок додавання вправ
     with st.expander("➕ Повибирати вправи зі списку або дописати нову"):
@@ -108,7 +112,7 @@ if current_tab == "Сьогоднішнє тренування":
         st.info("Будь ласка, вибери або допиши вправи в блоці вище, щоб розпочати.")
     else:
         for i, ex in enumerate(client["today_exercises"], 1):
-            st.subheader(f"{i}. {ex}")
+            st.write(f"🏋️‍♀️ **{i}. {ex}**")
             
             # 1. Поле введення сьогоднішніх підходів
             current_val = client["today_sets"].get(ex, "1п: \n2п: \nДля заміток:")
@@ -120,7 +124,7 @@ if current_tab == "Сьогоднішнє тренування":
                 label_visibility="collapsed"
             )
             
-            # 2. МИНУЛА ІСТОРІЯ ПРЯМО НИЖЧЕ (Скрол у вікні)
+            # 2. МИНУЛА ІСТОРІЯ ПРЯМО НИЖЧЕ
             past_history = client["exercise_history"].get(ex, "Історія порожня (це перше тренування для цієї вправи).")
             st.text_area(
                 f"📜 Минула історія по вправі «{ex}» (лише скрол):", 
@@ -159,13 +163,15 @@ if current_tab == "Сьогоднішнє тренування":
         st.success("Тренування завершено! Дані збережені в архіви.")
         st.rerun()
 
+
 # ВКЛАДКА: СПИСОК ВПРАВ
-elif current_tab == "Список вправ":
-    st.header(f"📋 Список вправ: {selected_client}")
-    st.info("Тут ти можеш вставити або відредагувати весь список вправ для цієї клієнтки (кожна вправа з нового рядка).")
-    client["exercise_list"] = st.text_area("Редагувати список:", value=client["exercise_list"], height=500)
+with tab_list:
+    st.subheader(f"📋 Список вправ: {selected_client}")
+    st.info("Тут ти можеш вставити або відредагувати весь список вправ для цієї клієнтки.")
+    client["exercise_list"] = st.text_area("Редагувати список:", value=client["exercise_list"], height=500, key="list_textarea")
+
 
 # ВКЛАДКА: ІСТОРІЯ ТРЕНУВАНЬ
-elif current_tab == "Історія тренувань":
-    st.header(f"📅 Загальна історія тренувань: {selected_client}")
-    client["workout_history"] = st.text_area("Перегляд історії:", value=client["workout_history"], height=500)
+with tab_history:
+    st.subheader(f"📅 Загальна історія тренувань: {selected_client}")
+    client["workout_history"] = st.text_area("Перегляд історії:", value=client["workout_history"], height=500, key="history_textarea")

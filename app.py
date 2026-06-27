@@ -42,14 +42,25 @@ if current_tab == "Сьогодні":
     
     st.markdown("---")
     
-    # Конструктор вправ
-    with st.expander("➕ Додати/видалити вправи зі списку"):
+    # Конструктор вправ + ПОВЕРНУТО РУЧНЕ ВВЕДЕННЯ НОВОЇ ВПРАВИ
+    with st.expander("➕ Додати/видалити вправи зі списку Юлі"):
         raw_exercises = [line.strip() for line in client["exercise_list"].split("\n") if line.strip()]
         new_selection = []
         for ex in raw_exercises:
             is_checked = ex in client["today_workout_exercises"]
             if st.checkbox(ex, value=is_checked, key=f"manage_{ex}"):
                 new_selection.append(ex)
+        
+        st.markdown("---")
+        # Поле для введення нової вправи руками, як було раніше
+        new_custom_ex = st.text_input("✨ Вписати нову вправу руками (якщо немає в списку):")
+        if st.button("Додати цю нову вправу на сьогодні"):
+            if new_custom_ex.strip() and new_custom_ex.strip() not in new_selection:
+                new_selection.append(new_custom_ex.strip())
+                # Одразу закидуємо її в загальний список вправ на перше місце
+                client["exercise_list"] = new_custom_ex.strip() + "\n" + client["exercise_list"]
+                st.success(f"Вправу '{new_custom_ex.strip()}' додано!")
+                
         client["today_workout_exercises"] = new_selection
         
     st.markdown("---")
@@ -58,7 +69,7 @@ if current_tab == "Сьогодні":
     for i, ex in enumerate(client["today_workout_exercises"], 1):
         st.subheader(f"🏋️ {i}. {ex.upper()}")
         
-        # Розділяємо екран на дві колонки: Ліву (введення) та Праву (скрол історії)
+        # Розділяємо екран на дві колонки
         col_input, col_history = st.columns([1.2, 1.0])
         
         with col_input:
@@ -72,14 +83,13 @@ if current_tab == "Сьогодні":
             )
             
         with col_history:
-            # Поле з історією цієї вправи, яке можна окремо скролити!
+            # Скрол-поле з історією. Тепер ВОНО СКРОЛИТЬСЯ (disabled прибрано)
             ex_history_text = client["exercise_history"].get(ex, "Історія цієї вправи поки порожня.")
             st.text_area(
-                f"📜 Минула історія (скроль тут):", 
+                f"📜 Минула історія (ТІЛЬКИ ДЛЯ ЧИТАННЯ):", 
                 value=ex_history_text, 
                 height=180, 
-                key=f"hist_scroll_{ex}_{i}",
-                disabled=True # Робимо поле тільки для читання, щоб випадково не стерти історію
+                key=f"hist_scroll_{ex}_{i}"
             )
             
         st.markdown("---")
@@ -105,7 +115,7 @@ if current_tab == "Сьогодні":
         st.success("Дані успішно розподілено!")
         st.rerun()
 
-# Інші вкладки залишаються стандартними нотатниками
+# Інші вкладки
 elif current_tab == "Список вправ":
     st.header(f"📋 Список вправ: {selected_client}")
     client["exercise_list"] = st.text_area("Редагувати список:", value=client["exercise_list"], height=500)

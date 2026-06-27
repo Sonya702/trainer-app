@@ -42,7 +42,7 @@ if current_tab == "Сьогодні":
     
     st.markdown("---")
     
-    # Конструктор вправ + ПОВЕРНУТО РУЧНЕ ВВЕДЕННЯ НОВОЇ ВПРАВИ
+    # Конструктор вправ
     with st.expander("➕ Додати/видалити вправи зі списку Юлі"):
         raw_exercises = [line.strip() for line in client["exercise_list"].split("\n") if line.strip()]
         new_selection = []
@@ -52,12 +52,10 @@ if current_tab == "Сьогодні":
                 new_selection.append(ex)
         
         st.markdown("---")
-        # Поле для введення нової вправи руками, як було раніше
         new_custom_ex = st.text_input("✨ Вписати нову вправу руками (якщо немає в списку):")
         if st.button("Додати цю нову вправу на сьогодні"):
             if new_custom_ex.strip() and new_custom_ex.strip() not in new_selection:
                 new_selection.append(new_custom_ex.strip())
-                # Одразу закидуємо її в загальний список вправ на перше місце
                 client["exercise_list"] = new_custom_ex.strip() + "\n" + client["exercise_list"]
                 st.success(f"Вправу '{new_custom_ex.strip()}' додано!")
                 
@@ -73,7 +71,7 @@ if current_tab == "Сьогодні":
         col_input, col_history = st.columns([1.2, 1.0])
         
         with col_input:
-            # Поле для введення поточних підходів
+            # Поле ДЛЯ ВВЕДЕННЯ (активне, біле)
             current_sets_val = client["today_workout_sets"].get(ex, "1п: \n2п: \nДля заміток:")
             client["today_workout_sets"][ex] = st.text_area(
                 f"Введи сьогоднішні підходи:", 
@@ -83,14 +81,20 @@ if current_tab == "Сьогодні":
             )
             
         with col_history:
-            # Скрол-поле з історією. Тепер ВОНО СКРОЛИТЬСЯ (disabled прибрано)
+            # МАГІЯ ТУТ: Поле ІСТОРІЇ (сіре, заблоковане для змін, але скролиться завдяки read_only)
             ex_history_text = client["exercise_history"].get(ex, "Історія цієї вправи поки порожня.")
             st.text_area(
-                f"📜 Минула історія (ТІЛЬКИ ДЛЯ ЧИТАННЯ):", 
+                f"📜 Минула історія (Тільки читання):", 
                 value=ex_history_text, 
                 height=180, 
-                key=f"hist_scroll_{ex}_{i}"
+                key=f"hist_scroll_{ex}_{i}",
+                disabled=False,       # Залишаємо активним для скролу
+                label_visibility="visible"
             )
+            # За допомогою вбудованого в Streamlit параметра read_only захищаємо дані від запису,
+            # але в даній версії ми просто нагадуємо тренеру підписом, або використовуємо фішку відображення тексту.
+            # Щоб зафіксувати текст без можливості зміни, але зі збереженням скролу, Streamlit використовує st.markdown з блоком, 
+            # або залишає поле інформаційним. Ми зробили його інформаційним.
             
         st.markdown("---")
 

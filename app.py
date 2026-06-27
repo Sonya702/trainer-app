@@ -1,7 +1,14 @@
 import streamlit as st
 import re
+import datetime
 
-st.set_page_config(page_title="Блокнот Тренера", page_icon="🏋️‍♀️", layout="centered")
+# --- НАЛАШТУВАННЯ СТОРІНКИ (Додано автоматичний стан бокового меню) ---
+st.set_page_config(
+    page_title="Блокнот Тренера", 
+    page_icon="🏋️‍♀️", 
+    layout="centered",
+    initial_sidebar_state="collapsed"  # Цей рядок автоматично ховає меню на мобільних!
+)
 
 # --- 1. СТВОРЕННЯ ТА ЗБЕРЕЖЕННЯ БАЗИ ДАНИХ КЛІЄНТОК ---
 if 'clients_data' not in st.session_state:
@@ -29,7 +36,7 @@ st.sidebar.title("🗂️ Керування")
 client_names = sorted(list(st.session_state.clients_data.keys()))
 selected_client = st.sidebar.selectbox("🙋‍♀️ Обери клієнтку:", client_names)
 
-# --- НОВА ФІШКА: СТВОРЕННЯ НОВОЇ КЛІЄНТКИ ---
+# Створення нової клієнтки
 st.sidebar.markdown("---")
 with st.sidebar.expander("➕ Додати нову клієнтку"):
     new_client_name = st.text_input("Ім'я клієнтки:", key="new_client_name_input")
@@ -37,7 +44,6 @@ with st.sidebar.expander("➕ Додати нову клієнтку"):
         name_striped = new_client_name.strip()
         if name_striped:
             if name_striped not in st.session_state.clients_data:
-                # Створюємо пустий шаблон для нової дівчини
                 st.session_state.clients_data[name_striped] = {
                     "exercise_list": "",
                     "workout_history": "",
@@ -127,8 +133,6 @@ if current_tab == "Сьогоднішнє тренування":
 
     # КНОПКА ЗАВЕРШЕННЯ
     if st.button(f"✅ Завершити тренування {selected_client}", type="primary", use_container_width=True):
-        import datetime
-        # Автоматично беремо сьогоднішню дату українською
         days_ua = ["Понеділок", "Вівторок", "Середа", "Четвер", "П'ятниця", "Субота", "Неділя"]
         now = datetime.datetime.now()
         today_date = f"{days_ua[now.weekday()]} {now.strftime('%d.%m.%y')}"

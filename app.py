@@ -1,6 +1,6 @@
 import streamlit as st
-import json
-import os
+from streamlit_gsheets import GSheetsConnection
+import pandas as pd
 import datetime
 
 # --- НАЛАШТУВАННЯ СТОРІНКИ ---
@@ -25,75 +25,68 @@ st.markdown(
     unsafe_allow_html=True
 )
 
-DB_FILE = "clients_backup_data.json"
+# Підключаємося до Google Таблиці
+try:
+    conn = st.connection("gsheets", type=GSheetsConnection)
+    df = conn.read(worksheet="workouts", ttl=0)
+except:
+    df = pd.DataFrame(columns=["client", "date", "focus", "exercise", "sets", "history"])
 
-def load_data():
-    if os.path.exists(DB_FILE):
-        try:
-            with open(DB_FILE, "r", encoding="utf-8") as f:
-                return json.load(f)
-        except:
-            pass
-    return {
-        "Юля": {
-            "exercise_list": "Біцепс палкою\nТріцепс палкою\nБіцепс молотки",
-            "workout_history": "",
-            "exercise_history": {},
-            "today_exercises": ["Біцепс палкою", "Тріцепс палкою"],
-            "today_sets": {},
-            "today_focus": ""
-        }
+# Перетворюємо дані з таблиці у зручний для програми формат (словник)
+db_data = {}
+for idx, row in df.iterrows():
+    cl_name = str(row["client"]).strip()
+    if cl_name and cl_name != "nan":
+        if cl_name not in db_data:
+            db_data[cl_name] = {
+                "exercise_list": "", "workout_history": str(row["history"]) if str(row["history"]) != "nan" else "",
+                "exercise_history": {}, "today_exercises": [], "today_sets": {}, "today_focus": str(row["focus"]) if str(row["focus"]) != "nan" else ""
+            }
+        
+        ex_name = str(row["exercise"]).strip()
+        if ex_name and ex_name != "nan":
+            if ex_name not in db_data[cl_name]["today_exercises"]:
+                db_data[cl_name]["today_exercises"].append(ex_name)
+            db_data[cl_name]["today_sets"][ex_name] = str(row["sets"]) if str(row["sets"]) != "nan" else ""
+
+# Базова Юля, якщо таблиця ще зовсім порожня
+if "Юля" not in db_data:
+    db_data["Юля"] = {
+        "exercise_list": "Біцепс палкою\nТріцепс палкою\nБіцепс молотки",
+        "workout_history": "", "exercise_history": {},
+        "today_exercises": ["Біцепс палкою", "Тріцепс палкою"], "today_sets": {}, "today_focus": ""
     }
-
-def save_data(data):
-    with open(DB_FILE, "w", encoding="utf-8") as f:
-        json.dump(data, f, ensure_ascii=False, indent=4)
-
-# Завантажуємо базу даних один раз за сесію
-if "trainer_db" not in st.session_state:
-    st.session_state.trainer_db = load_data()
-
-db_data = st.session_state.trainer_db
 
 # --- БОКОВЕ МЕНЮ ---
 st.sidebar.title("👥 Клієнтки")
 client_names = sorted(list(db_data.keys()))
 
-if "active_client_name" not in st.session_state:
-    st.session_state.active_client_name = client_names[0]
+if "active_client" not in st.session_state:
+    st.session_state.active_client = client_names[0]
 
 selected_client = st.sidebar.selectbox(
     "🙋‍♀️ Обери клієнтку:", 
     client_names, 
-    index=client_names.index(st.session_state.active_client_name) if st.session_state.active_client_name in client_names else 0
+    index=client_names.index(st.session_state.active_client) if st.session_state.active_client in client_names else 0
 )
+st.session_state.active_client = selected_client
 
-if selected_client != st.session_state.active_client_name:
-    st.session_state.active_client_name = selected_client
-    st.rerun()
+client = db_data[selected_client]
 
+# Додавання нової дівчини
 with st.sidebar.expander("➕ Додати нову клієнтку"):
     new_name = st.text_input("Ім'я:")
     if st.button("Створити"):
         name_s = new_name.strip()
         if name_s and name_s not in db_data:
-            db_data[name_s] = {
-                "exercise_list": "", "workout_history": "", "exercise_history": {},
-                "today_exercises": [], "today_sets": {}, "today_focus": ""
-            }
-            save_data(db_data)
-            st.session_state.active_client_name = name_s
+            new_row = pd.DataFrame([{"client": name_s, "date": "", "focus": "", "exercise": "", "sets": "", "history": ""}])
+            df = pd.concat([df, new_row], ignore_index=True)
+            conn.update(worksheet="workouts", data=df)
+            st.session_state.active_client = name_s
             st.success(f"Клієнтку {name_s} додано!")
             st.rerun()
 
-client = db_data[selected_client]
-
-# Гарантуємо наявність необхідних ключів у профілі клієнтки
-if "today_exercises" not in client: client["today_exercises"] = []
-if "today_sets" not in client: client["today_sets"] = {}
-if "exercise_history" not in client: client["exercise_history"] = {}
-
-# --- ГОЛОВНІ ВКЛАДКИ ---
+# Вкладки додатка
 tab_history, tab_today, tab_list = st.tabs([
     "📅 Історія тренувань",
     "📝 Сьогоднішнє тренування", 
@@ -103,128 +96,87 @@ tab_history, tab_today, tab_list = st.tabs([
 # ВКЛАДКА 1: ІСТОРІЯ ТРЕНУВАНЬ
 with tab_history:
     st.subheader(f"📅 Загальна історія: {selected_client}")
-    u_hist = st.text_area("Журнал:", value=client.get("workout_history", ""), height=400, key="hist_area_key")
-    if u_hist != client.get("workout_history", ""):
-        client["workout_history"] = u_hist
-        save_data(db_data)
+    st.text_area("Журнал:", value=client.get("workout_history", ""), height=400, disabled=True)
 
 # ВКЛАДКА 2: СЬОГОДНІШНЄ ТРЕНУВАННЯ
 with tab_today:
     st.subheader(f"Тренування: {selected_client}")
     
-    u_focus = st.text_input("Фокус дня:", value=client.get("today_focus", ""), key="focus_input_key")
-    if u_focus != client.get("today_focus", ""):
-        client["today_focus"] = u_focus
-        save_data(db_data)
-        
-    with st.expander("➕ Вибір та додавання вправ на сьогодні"):
-        st.markdown("**✨ Створити нову вправу:**")
-        fast_new_ex = st.text_input("Введіть назву нової вправи:", key="fast_ex_input_key", placeholder="Наприклад: Присідання плиє")
-        
-        if st.button("➕ Додати цю вправу в план", use_container_width=True):
-            ex_cleaned = fast_new_ex.strip()
-            if ex_cleaned:
-                if ex_cleaned not in client["today_exercises"]:
-                    client["today_exercises"].append(ex_cleaned)
-                
-                # Додаємо в загальний список
-                current_list = [line.strip() for line in client.get("exercise_list", "").split("\n") if line.strip()]
-                if ex_cleaned not in current_list:
-                    current_list.append(ex_cleaned)
-                    client["exercise_list"] = "\n".join(current_list)
-                
-                save_data(db_data)
-                st.success(f"Вправу '{ex_cleaned}' додано!")
-                st.rerun()
-                
-        st.markdown("---")
-        st.markdown("**📋 Вибрати з існуючих:**")
-        
+    u_focus = st.text_input("Фокус дня:", value=client.get("today_focus", ""))
+    
+    with st.expander("➕ Вибір вправ на сьогодні"):
         raw_list = [line.strip() for line in client.get("exercise_list", "").split("\n") if line.strip()]
+        if not raw_list:
+            raw_list = ["Біцепс палкою", "Тріцепс палкою", "Біцепс молотки"] # базовий набір
+        
         updated_sel = []
         for ex in raw_list:
-            is_ch = ex in client["today_exercises"]
-            if st.checkbox(ex, value=is_ch, key=f"check_ex_{ex}"):
+            is_ch = ex in client.get("today_exercises", [])
+            if st.checkbox(ex, value=is_ch, key=f"chk_{ex}"):
                 updated_sel.append(ex)
-                
-        if updated_sel != client["today_exercises"]:
-            client["today_exercises"] = updated_sel
-            save_data(db_data)
-            st.rerun()
 
     st.markdown("---")
     
-    today_exs = client["today_exercises"]
+    today_exs = updated_sel
     if not today_exs:
-        st.info("Виберіть або створіть вправи в блоці вище.")
+        st.info("Виберіть вправи в блоці вище.")
     else:
         for i, ex in enumerate(today_exs, 1):
             st.subheader(f"{i}. {ex.upper()}")
             
-            # Стандартний шаблон, якщо поле пусте
-            default_template = "1п: \n2п: \n3п: \n4п: \nДля заміток:"
-            c_sets = client["today_sets"].get(ex, default_template)
-            if not c_sets.strip():
-                c_sets = default_template
+            c_sets = client["today_sets"].get(ex, "1п: \n2п: \n3п: \n4п: \nДля заміток:")
+            n_sets = st.text_area(f"Введіть підходи для {ex}:", value=c_sets, height=200, key=f"txt_{ex}_{i}", label_visibility="collapsed")
             
-            input_key = f"textarea_sets_{selected_client}_{ex}_{i}"
-            
-            # Слідкуємо за тим, щоб збережене значення завжди відображалося правильно
-            n_sets = st.text_area(
-                f"Введіть підходи для {ex}:", 
-                value=c_sets, 
-                height=200, 
-                key=input_key, 
-                label_visibility="collapsed"
-            )
-            
-            # Якщо текст у полі змінився, записуємо його в сесію
-            if n_sets != client["today_sets"].get(ex):
+            if n_sets != c_sets:
                 client["today_sets"][ex] = n_sets
 
-            # ЗАЛІЗОБЕТОННА КНОПКА ФІКСАЦІЇ
-            if st.button(f"💾 Фіксувати ваги для вправи №{i}", key=f"btn_save_item_{ex}_{i}", use_container_width=True):
-                # Примусово беремо поточний стан саме з цього текстового поля
-                client["today_sets"][ex] = st.session_state[input_key]
-                save_data(db_data)
-                st.toast(f"Вправа №{i} ({ex}) збережена в чернетку!")
+            # КНОПКА ФІКСАЦІЇ ВПРАВИ В GOOGLE ТАБЛИЦЮ
+            if st.button(f"💾 Фіксувати ваги для вправи №{i}", key=f"btn_{ex}_{i}", use_container_width=True):
+                # Видаляємо старі рядки цієї вправи для цієї клієнтки, щоб не дублювати
+                df = df[~((df["client"] == selected_client) & (df["exercise"] == ex))]
+                
+                # Додаємо оновлений рядок
+                new_row = pd.DataFrame([{
+                    "client": selected_client,
+                    "date": datetime.datetime.now().strftime('%d.%m.%y'),
+                    "focus": u_focus,
+                    "exercise": ex,
+                    "sets": n_sets,
+                    "history": client.get("workout_history", "")
+                }])
+                df = pd.concat([df, new_row], ignore_index=True)
+                conn.update(worksheet="workouts", data=df)
+                st.toast(f"Вправа №{i} надійно збережена в Google Таблицю!")
 
-            # Минула історія
-            p_hist = client["exercise_history"].get(ex, "Історія вправи порожня.")
-            st.text_area("📜 Минула історія:", value=p_hist, height=310, key=f"past_history_view_{ex}_{i}", disabled=True)
-            st.markdown("---")
-
-    # ЗАВЕРШЕННЯ ТРЕНУВАННЯ
-    if st.button(f"✅ Завершити тренування {selected_client}", type="primary", use_container_width=True, key="finish_tr_key"):
+    # КНОПКА ЗАВЕРШЕННЯ ТРЕНУВАННЯ
+    if st.button(f"✅ Завершити тренування {selected_client}", type="primary", use_container_width=True):
         if today_exs:
             days_ua = ["Понеділок", "Вівторок", "Середа", "Четвер", "П'ятниця", "Субота", "Неділя"]
             now = datetime.datetime.now()
             today_date = f"{days_ua[now.weekday()]} {now.strftime('%d.%m.%y')}"
-            day_header = f"{today_date} ({client.get('today_focus', '')})"
-            
-            for ex in today_exs:
-                s_txt = client["today_sets"].get(ex, "").strip()
-                if s_txt:
-                    new_e = f"{day_header}\n{s_txt}\n\n"
-                    client["exercise_history"][ex] = new_e + client["exercise_history"].get(ex, "")
+            day_header = f"{today_date} ({u_focus})"
             
             new_w = f"{day_header}\n"
             for k, ex in enumerate(today_exs, 1):
-                new_w += f"{k}. {ex}\n"
-            client["workout_history"] = new_w + "\n\n" + client.get("workout_history", "")
+                s_txt = client["today_sets"].get(ex, "").strip()
+                new_w += f"{k}. {ex}\n{s_txt}\n\n"
             
-            client["today_exercises"] = []
-            client["today_sets"] = {}
-            client["today_focus"] = ""
+            full_history = new_w + "\n\n" + client.get("workout_history", "")
             
-            save_data(db_data)
-            st.success("Тренування успішно збережено в історію!")
+            # Чистимо поточний день у таблиці і записуємо все в історію
+            df = df[df["client"] != selected_client]
+            final_row = pd.DataFrame([{
+                "client": selected_client, "date": today_date, "focus": "", "exercise": "", "sets": "", "history": full_history
+            }])
+            df = pd.concat([df, final_row], ignore_index=True)
+            conn.update(worksheet="workouts", data=df)
+            
+            st.success("Тренування повністю збережено в архів історії!")
             st.rerun()
 
 # ВКЛАДКА 3: СПИСОК ВПРАВ
 with tab_list:
     st.subheader(f"📋 Список вправ: {selected_client}")
-    u_list = st.text_area("Вправи (кожна з нового рядка):", value=client.get("exercise_list", ""), height=400, key="list_area_key")
+    u_list = st.text_area("Вправи (кожна з нового рядка):", value=client.get("exercise_list", ""), height=400)
     if u_list != client.get("exercise_list", ""):
         client["exercise_list"] = u_list
-        save_data(db_data)
